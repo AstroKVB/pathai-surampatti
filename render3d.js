@@ -539,23 +539,154 @@
     scene.add(sun); scene.add(sun.target);
     models = buildModels();
     buildStatic();
+    buildSky(); buildEnvironment();
     ready = true;
     setLighting('off');
     return true;
+  }
+
+  // ---------------------------------------------------------------- sky, horizon, countryside, birds
+  let skyMesh, skyMat, birds = [], envGroup;
+  const SKY_FRAG = `
+    uniform vec3 top, mid, bot, sunDir, sunCol, cloudCol; uniform float time, cloud, stars, sunSize;
+    varying vec3 vDir;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+    float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 6; i++) { s += a * noise(p); p = p * 2.03 + 7.1; a *= 0.5; } return s; }
+    void main(){
+      vec3 d = normalize(vDir); float h = max(d.y, 0.0);
+      vec3 col = mix(bot, mid, smoothstep(0.0, 0.07, h)); col = mix(col, top, smoothstep(0.05, 0.42, h));
+      if (d.y < 0.0) col = bot;
+      vec3 sd3 = normalize(sunDir); float sd = max(dot(d, sd3), 0.0);
+      col += sunCol * (pow(sd, 6.0) * 0.22 + pow(sd, 48.0) * 0.35 + pow(sd, 700.0) * 1.4) * sunSize;
+      col += sunCol * smoothstep(0.99935, 0.99975, sd) * 3.0 * sunSize;
+      if (d.y > 0.0) {
+        vec2 uv = d.xz / (d.y + 0.06);
+        float n1 = fbm(uv * 0.55 + vec2(time * 0.010, time * 0.003));
+        float n2 = fbm(uv * 1.3 + vec2(-time * 0.006, time * 0.009) + 11.0);
+        float c = smoothstep(0.46 - cloud * 0.12, 0.82, n1 * 0.7 + n2 * 0.4) * cloud;
+        c *= smoothstep(0.0, 0.05, d.y);
+        float lit = clamp(n1 * 1.6 - n2 * 0.6, 0.0, 1.0);
+        vec3 cc = mix(cloudCol * 0.62, cloudCol, lit);
+        cc += sunCol * pow(sd, 3.0) * 0.45 * (1.0 - lit * 0.4);
+        col = mix(col, cc, clamp(c, 0.0, 0.95));
+        vec2 g = d.xz / (d.y + 0.35) * 70.0; vec2 gi = floor(g);
+        float st = step(0.9925, hash(gi)) * (0.6 + 0.4 * sin(time * 2.0 + hash(gi + 3.0) * 40.0));
+        col += vec3(st) * stars * smoothstep(0.08, 0.4, d.y) * (1.0 - c);
+      }
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`;
+  function buildSky() {
+    skyMat = new T.ShaderMaterial({
+      uniforms: { top: { value: new T.Color() }, mid: { value: new T.Color() }, bot: { value: new T.Color() }, sunDir: { value: new T.Vector3(-160, 70, 40) },
+        sunCol: { value: new T.Color() }, cloudCol: { value: new T.Color() }, time: { value: 0 }, cloud: { value: 0.7 }, stars: { value: 0 }, sunSize: { value: 1 } },
+      vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: SKY_FRAG, side: T.BackSide, depthWrite: false, depthTest: false, fog: false, toneMapped: false });
+    skyMesh = new T.Mesh(new T.SphereGeometry(1500, 32, 20), skyMat);
+    skyMesh.renderOrder = -1000; skyMesh.frustumCulled = false; scene.add(skyMesh);
+  }
+  function hillRing(radius, base, amp, color, seed, n) {
+    const R = seeded(seed), ph = [R() * 6, R() * 6, R() * 6, R() * 6], pos = [], idx = [];
+    for (let i = 0; i <= n; i++) {
+      const a = i / n * Math.PI * 2, x = Math.cos(a) * radius, z = Math.sin(a) * radius;
+      const hh = base + amp * (0.5 + 0.28 * Math.sin(a * 3 + ph[0]) + 0.2 * Math.sin(a * 7 + ph[1]) + 0.12 * Math.sin(a * 17 + ph[2]) + 0.06 * Math.sin(a * 41 + ph[3]));
+      pos.push(x, -6, z, x, hh, z);
+      if (i < n) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    return new T.Mesh(g, new T.MeshStandardMaterial({ color, roughness: 1, side: T.DoubleSide }));
+  }
+  function buildEnvironment() {
+    const R = seeded(77); envGroup = new T.Group(); scene.add(envGroup);
+    // layered hills, the far ones bluer (the fog does the rest)
+    envGroup.add(hillRing(930, 10, 70, '#6e8a74', 5, 220), hillRing(820, 6, 46, '#5e8352', 9, 200), hillRing(710, 2, 26, '#52783f', 13, 180));
+    // distant town skyline
+    const sky = [], SK = ['#c8b8a2', '#bfae98', '#d2c3ae', '#b3a58f', '#cdbfa8', '#a79a88'];
+    for (let i = 0; i < 70; i++) {
+      const a = R() * Math.PI * 2, r = 520 + R() * 130, w = 14 + R() * 22, h = 14 + R() * R() * 60, d = 14 + R() * 18;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r, col = SK[Math.floor(R() * SK.length)], ry = -a;
+      sky.push(piece(new T.BoxGeometry(w, h, d), col, x, h / 2, z, ry));
+      for (let f = 1; f < h / 4; f++) sky.push(piece(new T.BoxGeometry(w + 0.2, 0.9, d + 0.2), '#7d8aa0', x, f * 4, z, ry));
+      if (R() < 0.3) sky.push(piece(new T.CylinderGeometry(1.2, 1.4, 9, 8), '#8a8f98', x, h + 4.5, z));
+    }
+    envGroup.add(new T.Mesh(merge(sky), new T.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
+    // countryside in the quadrants between the roads: paddy fields, village houses, palms and trees
+    const FI = ['#8fa94c', '#76973f', '#a99b58', '#6d8d3a', '#b2a45f', '#9bb356'], items = [], homes = [], free = (x, z) => Math.abs(x) > 46 && Math.abs(z) > 46;
+    for (let i = 0; i < 24; i++) {
+      const x = (R() - 0.5) * 880, z = (R() - 0.5) * 880; if (!free(x, z) || !free(x + 14, z + 14) || !free(x - 14, z - 14)) continue;
+      items.push(piece(new T.BoxGeometry(18 + R() * 24, 0.05, 14 + R() * 24), FI[Math.floor(R() * FI.length)], x, 0.03, z, R() * 0.5 - 0.25));
+    }
+    const WALL = ['#efe3c8', '#f1cfa8', '#d8e4d0', '#e9c6c0', '#f4ecd8'], ROOF = ['#b5502f', '#9c4326', '#a9582f', '#7f6a52'];
+    for (let i = 0; i < 70; i++) {
+      const x = (R() - 0.5) * 760, z = (R() - 0.5) * 760; if (!free(x, z)) continue; homes.push([x, z]);
+      const w = 6 + R() * 5, d = 6 + R() * 4, h = 3.4 + R() * 1.4, ry = (R() - 0.5) * 0.5;
+      items.push(piece(new T.BoxGeometry(w, h, d), WALL[Math.floor(R() * WALL.length)], x, h / 2, z, ry));
+      const rg = new T.ConeGeometry(Math.max(w, d) * 0.78, 2.4, 4); rg.rotateY(Math.PI / 4); rg.scale(w / Math.max(w, d), 1, d / Math.max(w, d));
+      items.push(piece(rg, ROOF[Math.floor(R() * ROOF.length)], x, h + 1.2, z, ry));
+      items.push(piece(new T.BoxGeometry(1.1, 2.1, 0.2), '#6b4423', x + Math.sin(ry) * (d / 2), 1.05, z + Math.cos(ry) * (d / 2 + 0.05), ry));
+      [-1, 1].forEach(s => items.push(piece(new T.BoxGeometry(1.0, 1.0, 0.2), '#27425a', x + s * w * 0.28 * Math.cos(ry) + Math.sin(ry) * (d / 2), 2.1, z + Math.cos(ry) * (d / 2 + 0.05) - s * w * 0.28 * Math.sin(ry), ry)));
+    }
+    const palm = (x, z, k) => {
+      const h = (8 + R() * 6) * k, tx = x + (R() - 0.5) * 2.4, tz = z + (R() - 0.5) * 1.2;
+      items.push(limb(x, 0, z, tx, h, tz, 0.34, '#7c6648', 0.2));
+      const n = 7, a0 = R() * 6;
+      for (let i = 0; i < n; i++) {
+        const g = new T.BoxGeometry(5.2 * k, 0.06, 1.0 * k); g.translate(2.6 * k, 0, 0); g.rotateZ(-0.55 - R() * 0.2);
+        items.push(piece(g, i % 2 ? '#3d7a35' : '#4e8c3a', tx, h, tz, a0 + i * Math.PI * 2 / n));
+      }
+    };
+    const GREENS = ['#3f7a3a', '#4f8a3c', '#5b9a45', '#356b34', '#2f6a3a', '#6aa84f'];
+    const round = (x, z, k) => {
+      const s = (0.9 + R() * 1.0) * k; items.push(limb(x, 0, z, x, 3 * s, z, 0.3 * s, '#5b4636', 0.22 * s));
+      items.push(piece(new T.IcosahedronGeometry(2.8 * s, 0), GREENS[Math.floor(R() * GREENS.length)], x, 4.6 * s, z, R() * 3));
+      items.push(piece(new T.IcosahedronGeometry(1.8 * s, 0), GREENS[Math.floor(R() * GREENS.length)], x + 1.2 * s, 5.8 * s, z - 0.6 * s, R() * 3));
+    };
+    // dense forest: a jittered grid fills every quadrant (and the ground behind the shops) out to the hills
+    for (let gx = -660; gx <= 660; gx += 11) for (let gz = -660; gz <= 660; gz += 11) {
+      const x = gx + (R() - 0.5) * 9, z = gz + (R() - 0.5) * 9;
+      if (!free(x, z) || x * x + z * z > 660 * 660) continue;
+      if (homes.some(([hx, hz]) => Math.abs(hx - x) < 9 && Math.abs(hz - z) < 9)) continue;
+      const k = 1 + Math.hypot(x, z) / 900;
+      (R() < 0.33 ? palm : round)(x, z, k);
+    }
+    const cm = new T.Mesh(merge(items), new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 })); cm.receiveShadow = true; envGroup.add(cm);
+    // birds circling high above
+    const wing = new T.BufferGeometry(); wing.setAttribute('position', new T.Float32BufferAttribute([0, 0, 0, 0.2, 0, 1.6, -0.5, 0, 0.9], 3)); wing.computeVertexNormals();
+    const bm = new T.MeshBasicMaterial({ color: '#2a2118', side: T.DoubleSide });
+    for (let i = 0; i < 16; i++) {
+      const g = new T.Group(), l = new T.Mesh(wing, bm), r = new T.Mesh(wing, bm); r.scale.z = -1; g.add(l, r);
+      g.scale.setScalar(1.3 + R() * 0.8); scene.add(g);
+      birds.push({ g, l, r, rad: 120 + R() * 260, h: 55 + R() * 70, sp: 0.05 + R() * 0.05, ph: R() * 6.28, fl: 6 + R() * 3 });
+    }
+  }
+  function updateEnv(t) {
+    skyMat.uniforms.time.value = t; skyMesh.position.copy(camera.position);
+    const day = !(lightState && lightState.beams > 0.5);
+    birds.forEach(b => {
+      b.g.visible = day; if (!day) return;
+      const a = b.ph + t * b.sp;
+      b.g.position.set(Math.cos(a) * b.rad, b.h + Math.sin(t * 0.7 + b.ph) * 3, Math.sin(a) * b.rad);
+      b.g.rotation.y = Math.PI - a; const f = Math.sin(t * b.fl + b.ph) * 0.7;
+      b.l.rotation.x = f; b.r.rotation.x = -f;
+    });
   }
 
   let lightKey = null;
   function setLighting(night) {
     if (lightKey === night) return; lightKey = night;
     const L = {
-      off:   { sky: ['#40639c', '#e9a978', '#f6c79a'], fog: '#e4b48e', sun: ['#ffc48a', 2.4], hemi: ['#c6d6ff', '#6b5536', 1.15], dir: [-160, 70, 40], lamps: 0.55, beams: 0.35, exp: 1.0 },
-      night: { sky: ['#030712', '#0b1530', '#1b2547'], fog: '#111a33', sun: ['#9db4ff', 0.5], hemi: ['#3b4f86', '#14100b', 0.45], dir: [80, 160, -60], lamps: 1, beams: 1, exp: 1.25 },
-      late:  { sky: ['#01030a', '#060c1f', '#101935'], fog: '#0a1126', sun: ['#8aa2f0', 0.35], hemi: ['#2c3d6e', '#0d0a07', 0.35], dir: [80, 160, -60], lamps: 1, beams: 1, exp: 1.3 },
+      off:   { sky: ['#2f66b0', '#f0b684', '#f9d9ae'], fog: '#efc59d', sun: ['#ffc48a', 2.4], hemi: ['#c6d6ff', '#6b5536', 1.15], dir: [-160, 70, 40], lamps: 0.55, beams: 0.35, exp: 1.0, sunCol: '#ffb064', cloudCol: '#fff1de', cloud: 1.0, stars: 0, sunSize: 1 },
+      night: { sky: ['#02040c', '#0c1736', '#1a2650'], fog: '#141d3c', sun: ['#9db4ff', 0.5], hemi: ['#3b4f86', '#14100b', 0.45], dir: [80, 160, -60], lamps: 1, beams: 1, exp: 1.25, sunCol: '#aac0ff', cloudCol: '#46557f', cloud: 0.4, stars: 1, sunSize: 0.55 },
+      late:  { sky: ['#01030a', '#060c1f', '#101935'], fog: '#0a1126', sun: ['#8aa2f0', 0.35], hemi: ['#2c3d6e', '#0d0a07', 0.35], dir: [80, 160, -60], lamps: 1, beams: 1, exp: 1.3, sunCol: '#8aa2f0', cloudCol: '#2c3860', cloud: 0.3, stars: 1, sunSize: 0.45 },
     }[night] || null;
     if (!L) return;
-    if (skyTex) skyTex.dispose();
-    skyTex = skyTexture(...L.sky); scene.background = skyTex;
-    scene.fog = new T.Fog(L.fog, 220, 640);
+    const U = skyMat.uniforms; U.top.value.set(L.sky[0]); U.mid.value.set(L.sky[1]); U.bot.value.set(L.sky[2]);
+    U.sunDir.value.set(L.dir[0], L.dir[1], L.dir[2]); U.sunCol.value.set(L.sunCol); U.cloudCol.value.set(L.cloudCol);
+    U.cloud.value = L.cloud; U.stars.value = L.stars; U.sunSize.value = L.sunSize;
+    scene.background = new T.Color(L.fog);
+    scene.fog = new T.Fog(L.fog, 260, 1150);
     sun.color.set(L.sun[0]); sun.intensity = L.sun[1];
     sun.position.set(L.dir[0], L.dir[1], L.dir[2]); sun.target.position.set(0, 0, 0);
     hemi.color.set(L.hemi[0]); hemi.groundColor.set(L.hemi[1]); hemi.intensity = L.hemi[2];
@@ -822,8 +953,11 @@
     VJ.A.group.visible = key === 'A'; VJ.B.group.visible = key === 'B';
     upload(VJ[key], simT);
     placeCamera(pw / ph, key);
+    updateEnv(performance.now() / 1000);
     renderer.render(scene, camera);
     ctx.drawImage(cv, x, y, w, h);
+    const vg = ctx.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.34, x + w / 2, y + h / 2, Math.hypot(w, h) * 0.6);
+    vg.addColorStop(0, 'rgba(40,20,5,0)'); vg.addColorStop(1, 'rgba(40,20,5,0.26)'); ctx.fillStyle = vg; ctx.fillRect(x, y, w, h);
     const v3 = new T.Vector3();
     return function project(px, py, pz) {
       v3.set(px, py, pz).project(camera);
