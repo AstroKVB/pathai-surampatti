@@ -3,8 +3,8 @@
   'use strict';
   const P = window.PATHAI;
   const { ARMS, ORDER, CLASSES, M_PER_PCU, RULES } = P;
-  const COL = { a: '#f97362', b: '#2dd4bf', bg: '#0a1020', road: '#2a3142', roadEdge: '#3c4559', mark: '#cfd6e4',
-    text: '#e6edf7', muted: '#94a3b8', red: '#ef4444', amber: '#f59e0b', green: '#22c55e', grass: '#0f1a14' };
+  const COL = { a: '#f97362', b: '#2dd4bf', bg: '#2b2016', road: '#35302c', roadEdge: '#4a4038', mark: '#e6dcc8',
+    text: '#f6ecd8', muted: '#c9b08a', red: '#ef4444', amber: '#f59e0b', green: '#22c55e', grass: '#1d2616' };
   const NIGHT_PCU = { night: 100, late: 30 };
   const TOTAL_PCU = ORDER.reduce((s, a) => s + ARMS[a].pcuHr, 0);   // 2,551
   const $ = id => document.getElementById(id);
@@ -268,7 +268,7 @@
     ctx.restore();
     const st = j.ctrl.runner.stage;
     // header
-    ctx.fillStyle = '#0d1527'; ctx.fillRect(0, 0, LW, HDR);
+    ctx.fillStyle = '#3a2a1b'; ctx.fillRect(0, 0, LW, HDR);
     ctx.fillStyle = accent; ctx.fillRect(0, 0, 6, HDR);
     txt(ctx, which === 'A' ? 'A · Fixed timer (today)' : 'B · PATHAI adaptive', 18, 21, { size: 17, weight: 700 });
     txt(ctx, which === 'A' ? '27 s green + 3 s amber each · 120 s cycle' : 'Webster every cycle · PCU-weighted · clamped', 18, 45, { size: 11.5, color: COL.muted });
@@ -291,7 +291,7 @@
 
     // footer
     const y0 = HDR + SH;
-    ctx.fillStyle = '#0d1527'; ctx.fillRect(0, y0, LW, FTR);
+    ctx.fillStyle = '#3a2a1b'; ctx.fillRect(0, y0, LW, FTR);
     const stt = opts.stats;
     if (stt) {
       const cells = [['Avg wait', `${stt.avgDelay.toFixed(0)} s`], ['Longest queue', `${stt.maxQueueM.toFixed(0)} m`], ['Cleared', `${stt.cleared}`], ['East x', stt.per.E.x ? stt.per.E.x.toFixed(2) : '—']];
@@ -382,7 +382,7 @@
     const NAMES = { E: 'Perundurai Rd · from City Core', W: 'Perundurai Rd · from Thindal', N: 'Mohan Kumaramangalam Rd', S: 'Surampatti Naal Rd' };
     ORDER.forEach(a => {
       const p = proj(...an.labels[a]);
-      if (inView(p)) pill(ctx, NAMES[a], p[0], p[1], 'rgba(8,13,26,.72)', '#e2e8f0', 10, 'center');
+      if (inView(p)) pill(ctx, NAMES[a], p[0], p[1], 'rgba(44,30,18,.78)', '#f6ecd8', 10, 'center');
     });
     ORDER.forEach(a => {
       const q = an.queue[a]; if (q.m < 8) return;
@@ -415,7 +415,7 @@
       ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fillStyle = 'rgba(8,13,26,.7)'; ctx.fill();
       ctx.rotate(ang + Math.PI / 2);
       ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.closePath(); ctx.fillStyle = '#ef4444'; ctx.fill();
-      ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.closePath(); ctx.fillStyle = '#e2e8f0'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.closePath(); ctx.fillStyle = '#f6ecd8'; ctx.fill();
       ctx.restore();
       txt(ctx, 'N', x + Math.cos(ang) * 24, y + Math.sin(ang) * 24, { size: 11, weight: 800, align: 'center' });
     }
@@ -490,7 +490,7 @@
       [['a', COL.a], ['b', COL.b]].forEach(([k, c], m) => {
         const v = it[k], bh = h * v / max, bw = gw * 0.26, x = x0 + gw / 2 + (m ? 6 : -6 - bw);
         rr(ctx, x, base - bh, bw, Math.max(bh, 1), 3); ctx.fillStyle = c; ctx.fill();
-        if (it.range) { const [lo, hi] = it.range[k]; ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1.2; const yl = base - h * lo / max, yh = base - h * hi / max; ctx.beginPath(); ctx.moveTo(x + bw / 2, yl); ctx.lineTo(x + bw / 2, yh); ctx.moveTo(x + bw / 2 - 4, yl); ctx.lineTo(x + bw / 2 + 4, yl); ctx.moveTo(x + bw / 2 - 4, yh); ctx.lineTo(x + bw / 2 + 4, yh); ctx.stroke(); }
+        if (it.range) { const [lo, hi] = it.range[k]; ctx.strokeStyle = '#f6ecd8'; ctx.lineWidth = 1.2; const yl = base - h * lo / max, yh = base - h * hi / max; ctx.beginPath(); ctx.moveTo(x + bw / 2, yl); ctx.lineTo(x + bw / 2, yh); ctx.moveTo(x + bw / 2 - 4, yl); ctx.lineTo(x + bw / 2 + 4, yl); ctx.moveTo(x + bw / 2 - 4, yh); ctx.lineTo(x + bw / 2 + 4, yh); ctx.stroke(); }
         const yTop = it.range ? Math.min(base - bh, base - h * it.range[k][1] / max) : base - bh;
         txt(ctx, it.fmt(v), x + bw / 2, yTop - vs * 0.75, { size: vs, weight: 700, align: 'center', color: c });
       });
@@ -573,7 +573,7 @@
   function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function exportHeader(ctx, W, title, sub) {
     ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, W, EXH);
-    ctx.fillStyle = '#0d1527'; ctx.fillRect(0, 0, W, 130);
+    ctx.fillStyle = '#3a2a1b'; ctx.fillRect(0, 0, W, 130);
     ctx.fillStyle = COL.b; ctx.fillRect(0, 0, 14, 130);
     txt(ctx, title, 50, 50, { size: 46, weight: 700 });
     txt(ctx, sub, 50, 100, { size: 26, color: COL.muted });
@@ -686,17 +686,17 @@
     });
     // per-arm table
     const top = 925, cols = [80, 600, 820, 1040, 1260, 1480, 1700], heads = ['Road', 'A wait', 'B wait', 'A queue', 'B queue', 'A x', 'B x'];
-    ctx.fillStyle = '#0d1527'; rr(ctx, 50, top - 10, W - 100, 545, 16); ctx.fill();
+    ctx.fillStyle = '#3a2a1b'; rr(ctx, 50, top - 10, W - 100, 545, 16); ctx.fill();
     heads.forEach((h, i) => txt(ctx, h, cols[i] + (i ? 120 : 0), top + 34, { size: 24, color: COL.muted, weight: 600, align: i ? 'right' : 'left' }));
     ORDER.forEach((a, r) => {
       const y = top + 100 + r * 70, pa = A.per[a], pb = B.per[a];
-      ctx.strokeStyle = '#24324f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(70, y - 36); ctx.lineTo(W - 70, y - 36); ctx.stroke();
+      ctx.strokeStyle = '#5a4530'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(70, y - 36); ctx.lineTo(W - 70, y - 36); ctx.stroke();
       txt(ctx, `${ARMS[a].name} · ${ARMS[a].road}`, cols[0], y, { size: 25, weight: 600 });
       const vals = [`${pa.avgDelay.mean.toFixed(0)} s`, `${pb.avgDelay.mean.toFixed(0)} s`, `${Math.round(pa.maxQm.mean)} m`, `${Math.round(pb.maxQm.mean)} m`, pa.x.mean.toFixed(2), pb.x.mean.toFixed(2)];
       vals.forEach((v, i) => txt(ctx, v, cols[i + 1] + 120, y, { size: 27, weight: 700, align: 'right', color: i % 2 ? COL.b : (i === 4 && pa.x.mean > 1 ? '#fca5a5' : COL.a) }));
     });
     const y = top + 100 + 4 * 70;
-    ctx.strokeStyle = '#24324f'; ctx.beginPath(); ctx.moveTo(70, y - 36); ctx.lineTo(W - 70, y - 36); ctx.stroke();
+    ctx.strokeStyle = '#5a4530'; ctx.beginPath(); ctx.moveTo(70, y - 36); ctx.lineTo(W - 70, y - 36); ctx.stroke();
     txt(ctx, `Model check: the fixed-timer run matches the waits we measured on the street within ±15% on all four roads`, cols[0], y + 4, { size: 22, color: '#cbd5e1' });
     txt(ctx, `(East ${A.per.E.avgDelay.mean.toFixed(0)} s vs 128 s · West ${A.per.W.avgDelay.mean.toFixed(0)} vs 46 · North ${A.per.N.avgDelay.mean.toFixed(0)} vs 44 · South ${A.per.S.avgDelay.mean.toFixed(0)} vs 47), so we trust what it says about PATHAI.`, cols[0], y + 40, { size: 22, color: '#cbd5e1' });
     const sideUp = ['S', 'W', 'N'].map(a => B.per[a].avgDelay.mean - A.per[a].avgDelay.mean);
