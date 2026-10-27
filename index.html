@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PATHAI Junction Simulator</title>
+<meta name="description" content="Fixed timer vs PATHAI adaptive signal at Surampatti Four Road Junction, Erode. Same traffic, side by side.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"><span class="l r"></span><span class="l a"></span><span class="l g"></span></div>
+    <div>
+      <h1>PATHAI <span>Junction Simulator</span></h1>
+      <p>Surampatti Four Road Junction, Erode · same traffic through a fixed timer and our AI signal</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="sim">Live simulation</button>
+    <button class="tab" data-tab="map">Junction map</button>
+    <button class="tab" data-tab="results">Fair test results</button>
+    <button class="tab" data-tab="data">Data &amp; method</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ LIVE SIM ============ -->
+  <section id="tab-sim" class="tabpane active">
+    <div class="bar">
+      <button id="btnPlay" class="btn primary">Pause</button>
+      <label class="inline">Speed
+        <select id="speed"><option value="1">1×</option><option value="4">4×</option><option value="10" selected>10×</option><option value="30">30×</option><option value="60">60×</option></select>
+      </label>
+      <label class="inline">Seed <input id="seed" type="number" min="1" max="999" value="1"></label>
+      <button id="btnReset" class="btn">Reset</button>
+      <label class="inline">View
+        <select id="view"><option value="both">Side by side</option><option value="A">A only</option><option value="B">B only</option></select>
+      </label>
+      <label class="inline" id="camWrap" title="Drag to turn · right-drag to move · wheel to zoom · double-click to reset">Camera
+        <select id="cam"><option value="overview">Overview</option><option value="east">Behind the East queue</option><option value="street">Street corner</option><option value="top">Top-down</option><option value="follow">Follow ambulance</option><option value="free" hidden>Free</option></select>
+      </label>
+      <div class="clock"><span id="clock">18:15:00</span><small id="clockSub">evening peak</small></div>
+      <button id="btnExport" class="btn accent" title="Download 3 PNG screenshots for Slide 4">Export slide screenshots</button>
+    </div>
+
+    <div class="simgrid">
+      <div class="canvases" id="canvases">
+        <canvas id="cvA" aria-label="Controller A, fixed timer"></canvas>
+        <canvas id="cvB" aria-label="Controller B, PATHAI adaptive"></canvas>
+      </div>
+
+      <aside class="side">
+        <div class="card">
+          <h3>Real-world events</h3>
+          <button id="btnAmb" class="btn danger wide">Send ambulance → Thanthai Periyar GH</button>
+          <p class="hint">Enters on Perundurai Rd (West arm, from Thindal) heading to the city-core hospitals.</p>
+          <div class="row2">
+            <label>Night mode
+              <select id="night"><option value="off">Off (18:15 peak)</option><option value="night">23:30 · ~100 PCU/hr</option><option value="late">02:00 · ~30 PCU/hr</option></select>
+            </label>
+            <label>Cameras
+              <select id="fail"><option value="none">All healthy</option><option value="east">East camera down</option><option value="fog">Dense fog: all &lt; 0.5</option></select>
+            </label>
+          </div>
+          <div class="conf" id="confBars"></div>
+        </div>
+
+        <div class="card">
+          <h3>Police override console <small>(controller B)</small></h3>
+          <div class="override">
+            <button class="btn ov" data-arm="N">North</button>
+            <button class="btn ov" data-arm="W">West</button>
+            <button class="btn ov" data-arm="E">East</button>
+            <button class="btn ov" data-arm="S">South</button>
+            <button class="btn ov release" data-arm="">Release to AI</button>
+          </div>
+          <p class="hint">One tap takes the junction. The 3 s amber + 2 s all-red can never be skipped.</p>
+        </div>
+
+        <div class="card">
+          <h3>Arrivals <small>(× the Round 1 peak count, both controllers)</small></h3>
+          <div id="sliders"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="dash">
+      <div class="card metrics">
+        <h3>Live telemetry <small id="metricsNote">since reset</small></h3>
+        <table id="metrics"></table>
+      </div>
+      <div class="card chartcard">
+        <h3>A vs B, live</h3>
+        <canvas id="chartBars" height="170"></canvas>
+        <canvas id="chartLine" height="150"></canvas>
+      </div>
+      <div class="card logcard">
+        <h3>PATHAI decision log</h3>
+        <ol id="log"></ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MAP ============ -->
+  <section id="tab-map" class="tabpane">
+    <div class="card"><canvas id="cvMap" class="full"></canvas></div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="tab-results" class="tabpane">
+    <div class="bar">
+      <button id="btnRun" class="btn primary">Run fair test again</button>
+      <label class="inline"><input type="checkbox" id="stress"> Also run 1-hour stress test</label>
+      <span class="hint" id="runNote"></span>
+    </div>
+    <div class="card"><canvas id="cvResults" class="full"></canvas></div>
+    <div class="card"><div id="resultTables"></div></div>
+  </section>
+
+  <!-- ============ DATA ============ -->
+  <section id="tab-data" class="tabpane">
+    <div class="card prose" id="dataPane"></div>
+  </section>
+</main>
+
+<footer class="foot">HCL Jigsaw Edition 7 · Grade 8 · AI Revolution &amp; Digital Futures · Traffic Flow Optimizer · Amrita Vidyalayam, Erode</footer>
+
+<script src="vendor/three.min.js"></script>
+<script src="engine.js"></script>
+<script src="render3d.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
